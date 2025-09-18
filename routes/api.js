@@ -1,47 +1,88 @@
-/*
-*
-*
-*       Complete the API routing below
-*       
-*       
-*/
-
 'use strict';
+require('dotenv').config();
+const Book = require('../models.js');
+const mongoose = require('mongoose');
+const uri = process.env.MONGO_URI;
+
+mongoose.connect(uri).then( () => console.log('MongoDB connected')).catch( err => console.error('Connection error: ', err));
+
 
 module.exports = function (app) {
 
   app.route('/api/books')
-    .get(function (req, res){
-      //response will be array of book objects
-      //json res format: [{"_id": bookid, "title": book_title, "commentcount": num_of_comments },...]
+    .get(async function (req, res){ 
+      try {
+        const books = await Book.find({});
+        res.json(books);
+      } catch (err) {
+        console.error(err);
+        res.status(500);
+      }
     })
     
-    .post(function (req, res){
-      let title = req.body.title;
-      //response will contain new book object including atleast _id and title
+    .post(async function (req, res){
+      const title = req.body.title;
+      if(!title) return res.json('missing required field title') 
+      try {
+        const book = new Book({ title });
+        const savedBook = await book.save();
+        return res.json({ title: savedBook.title, _id: savedBook._id })
+      } catch (err) {
+        console.error(err); // Log for debugging
+        res.status(500);
+      }
     })
     
-    .delete(function(req, res){
-      //if successful response will be 'complete delete successful'
+    .delete(async function(req, res){
+      try { 
+        const deletedBooks = await Book.deleteMany({});
+        res.send('complete delete successful');
+      } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Error in DELETE ALL route' });
+      }
     });
 
-
-
   app.route('/api/books/:id')
-    .get(function (req, res){
-      let bookid = req.params.id;
-      //json res format: {"_id": bookid, "title": book_title, "comments": [comment,comment,...]}
+    .get(async function (req, res){
+      const bookid = req.params.id;
+      try {
+        const bookFound = await Book.findById(bookid);
+        if (!bookFound) return res.send('no book exists');
+        res.json(bookFound);
+      } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Error in GET route'})
+      }
     })
     
-    .post(function(req, res){
-      let bookid = req.params.id;
-      let comment = req.body.comment;
-      //json res format same as .get
+    .post(async function(req, res){
+      const bookid = req.params.id;
+      const comment = req.body.comment;
+      if (!comment) return res.send('missing required field comment');   
+      try {
+        const commentedBook = await Book.findById(bookid);
+        if (!commentedBook) return res.send('no book exists');
+        commentedBook.comments.push(comment);
+        commentedBook.commentcount += 1
+        await commentedBook.save();
+        res.json(commentedBook);
+      } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Error in POST route' });
+      }     
     })
     
-    .delete(function(req, res){
-      let bookid = req.params.id;
-      //if successful response will be 'delete successful'
+    .delete(async function(req, res){
+      const bookid = req.params.id;
+      try {
+        const deletedBook = await Book.findByIdAndDelete(bookid); 
+        if (!deletedBook) return res.send('no book exists');
+        res.send('delete successful');
+      } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Error in DELETE route' });
+      }
     });
   
 };
